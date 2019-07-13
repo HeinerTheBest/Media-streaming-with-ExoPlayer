@@ -19,11 +19,14 @@ import android.annotation.SuppressLint;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
+import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.dash.DashChunkSource;
@@ -46,6 +49,8 @@ public class PlayerActivity extends AppCompatActivity {
   // bandwidth meter to measure and estimate bandwidth
   private static final DefaultBandwidthMeter BANDWIDTH_METER = new DefaultBandwidthMeter();
 
+  private ComponentListener componentListener;
+
   private SimpleExoPlayer player;
   private PlayerView playerView;
 
@@ -57,6 +62,8 @@ public class PlayerActivity extends AppCompatActivity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_player);
+
+    componentListener = new ComponentListener();
 
     playerView = findViewById(R.id.video_view);
   }
@@ -99,12 +106,23 @@ public class PlayerActivity extends AppCompatActivity {
       // a factory to create an AdaptiveVideoTrackSelection
       TrackSelection.Factory adaptiveTrackSelectionFactory =
           new AdaptiveTrackSelection.Factory(BANDWIDTH_METER);
+
+      player = ExoPlayerFactory.newSimpleInstance(
+              new DefaultRenderersFactory(this),
+              new DefaultTrackSelector(adaptiveTrackSelectionFactory),
+              new DefaultLoadControl());
+
+
+
       // let the factory create a player instance with default components
       player = ExoPlayerFactory.newSimpleInstance(new DefaultRenderersFactory(this),
           new DefaultTrackSelector(adaptiveTrackSelectionFactory), new DefaultLoadControl());
       playerView.setPlayer(player);
       player.setPlayWhenReady(playWhenReady);
       player.seekTo(currentWindow, playbackPosition);
+
+        player.addListener(componentListener);
+
     }
     MediaSource mediaSource = buildMediaSource(Uri.parse(getString(R.string.media_url_dash)));
     player.prepare(mediaSource, true, false);
@@ -115,6 +133,7 @@ public class PlayerActivity extends AppCompatActivity {
       playbackPosition = player.getCurrentPosition();
       currentWindow = player.getCurrentWindowIndex();
       playWhenReady = player.getPlayWhenReady();
+      player.removeListener(componentListener);
       player.release();
       player = null;
     }
@@ -138,4 +157,31 @@ public class PlayerActivity extends AppCompatActivity {
         | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
   }
 
+  private class ComponentListener extends Player.DefaultEventListener {
+
+    @Override
+    public void onPlayerStateChanged(boolean playWhenReady,
+                                     int playbackState) {
+      String stateString;
+      switch (playbackState) {
+        case ExoPlayer.STATE_IDLE:
+          stateString = "ExoPlayer.STATE_IDLE      -";
+          break;
+        case ExoPlayer.STATE_BUFFERING:
+          stateString = "ExoPlayer.STATE_BUFFERING -";
+          break;
+        case ExoPlayer.STATE_READY:
+          stateString = "ExoPlayer.STATE_READY     -";
+          break;
+        case ExoPlayer.STATE_ENDED:
+          stateString = "ExoPlayer.STATE_ENDED     -";
+          break;
+        default:
+          stateString = "UNKNOWN_STATE             -";
+          break;
+      }
+      Log.d("Heiner ", "changed state to " + stateString
+              + " playWhenReady: " + playWhenReady);
+    }
+  }
 }
